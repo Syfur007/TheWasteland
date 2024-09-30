@@ -22,19 +22,26 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 
+# Adding all the source files in project
+file(GLOB_RECURSE CPP_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+
+
 # Adding SDL2 in project
 set(SDL2_DIR "C:/SDL/SDL2/cmake") 
 set(SDL2_Image_DIR "C:/SDL/SDL2_image/cmake") 
-set(SDL2_ttf_DIR "C:/SDL/SDL2_ttf/cmake") 
 find_package(SDL2 REQUIRED)
 find_package(SDL2_Image REQUIRED)
-find_package(SDL2_ttf REQUIRED)
+
+
+# Adding executable
+add_executable(${PROJECT_NAME} ${CPP_FILES})
+
 
 # Include directories
-include_directories(${CMAKE_SOURCE_DIR}/src)
-
-
-add_executable(${PROJECT_NAME} src/main.cpp src/perlin_noise.cpp)
+include_directories(${PROJECT_NAME}  
+    ${SDL2_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/src
+)
 
 
 # Linking the libraries used in project
@@ -42,5 +49,4 @@ target_link_libraries(${PROJECT_NAME}
     SDL2::SDL2main
     SDL2::SDL2
     SDL2_image::SDL2_image
-    SDL2_ttf::SDL2_ttf
 )

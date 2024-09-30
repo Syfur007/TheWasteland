@@ -1,68 +1,130 @@
-#include "perlin_noise.h"
+#include "perlin_noise.hpp"
 #include <cmath>
 #include <random>
 #include <algorithm>
 #include <numeric>
 #include <SDL.h>
 
-PerlinNoise::PerlinNoise(unsigned int seed) {
-    p.resize(256);
-    std::iota(p.begin(), p.end(), 0);
-    if (seed == 0) {
-        seed = generateSeed();
-        SDL_Log("PerlinNoise: Using random seed %u", seed);
+
+PerlinNoise::PerlinNoise(unsigned int seed) : seed(seed) {
+    
+    // Initialize finalNoise with the size of the window
+    finalNoise.resize(mapHeight * mapWidth);
+
+    const int GRID_SIZE = SMALL;
+
+    // Generate noise values (example logic, replace with actual noise generation)
+    for (int y = 0; y < mapHeight; ++y) {
+        for (int x = 0; x < mapWidth; ++x) {
+            finalNoise[y * mapWidth + x] = noise(static_cast<float>(x) / GRID_SIZE, static_cast<float>(y) / GRID_SIZE); // Example noise value
+        }
     }
-    std::default_random_engine engine(seed);
-    std::shuffle(p.begin(), p.end(), engine);
-    p.insert(p.end(), p.begin(), p.end());
 }
 
-unsigned int PerlinNoise::generateSeed() {
-    std::random_device rd;
-    return rd();
+
+vector2 PerlinNoise::randomUnitVector(int ix, int iy)
+{
+    const unsigned w = 8 * sizeof(unsigned);
+    const unsigned s = w / 2; 
+    unsigned a = ix, b = iy;
+    a *= 3284157443;
+ 
+    b ^= a << s | a >> w - s;
+    b *= 1911520717;
+ 
+    a ^= b << s | b >> w - s;
+    a *= 2048419325;
+
+    a ^= seed;
+    b ^= seed;
+
+    float random = a * (3.14159265 / ~(~0u >> 1));
+    
+    return {cos(random), sin(random)};
 }
 
-double PerlinNoise::fade(double t) {
-    return t * t * t * (t * (t * 6 - 15) + 10);
+
+float PerlinNoise::dotGridGradient(int ix, int iy, float x, float y) {
+    // Get gradient from integer coordinates
+    vector2 gradient = randomUnitVector(ix, iy);
+ 
+    // Compute the distance vector
+    float dx = x - (float)ix;
+    float dy = y - (float)iy;
+ 
+    // Compute the dot-product
+    return (dx * gradient.x + dy * gradient.y);
 }
 
-double PerlinNoise::lerp(double t, double a, double b) {
-    return a + t * (b - a);
+ 
+float PerlinNoise::interpolate(float a0, float a1, float w)
+{
+    return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
 }
 
-double PerlinNoise::grad(int hash, double x, double y, double z) {
-    int h = hash & 15;
-    double u = h < 8 ? x : y;
-    double v = h < 4 ? y : (h == 12 || h == 14 ? x : z);
-    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+
+float PerlinNoise::noise(float x, float y)
+{
+    int x0 = (int)x;
+    int y0 = (int)y;
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+
+    // Interpolation weights
+    float sx = x - (float)x0;
+    float sy = y - (float)y0;
+
+    // Compute and interpolate top two corners
+    float n0 = dotGridGradient(x0, y0, x, y);
+    float n1 = dotGridGradient(x1, y0, x, y);
+    float ix0 = interpolate(n0, n1, sx);
+
+    // Compute and interpolate bottom two corners
+    n0 = dotGridGradient(x0, y1, x, y);
+    n1 = dotGridGradient(x1, y1, x, y);
+    float ix1 = interpolate(n0, n1, sx);
+
+    // Interpolate the two results
+    return interpolate(ix0, ix1, sy);
 }
 
-double PerlinNoise::noise(double x, double y, double z) {
-    int X = static_cast<int>(std::floor(x)) & 255;
-    int Y = static_cast<int>(std::floor(y)) & 255;
-    int Z = static_cast<int>(std::floor(z)) & 255;
 
-    x -= std::floor(x);
-    y -= std::floor(y);
-    z -= std::floor(z);
+// PerlinNoise::PerlinNoise(unsigned int seed): seed(seed) {
 
-    double u = fade(x);
-    double v = fade(y);
-    double w = fade(z);
+//     const int GRID_SIZE = 400;
 
-    int A = p[X] + Y;
-    int AA = p[A] + Z;
-    int AB = p[A + 1] + Z;
-    int B = p[X + 1] + Y;
-    int BA = p[B] + Z;
-    int BB = p[B + 1] + Z;
-
-    return lerp(w, lerp(v, lerp(u, grad(p[AA], x, y, z),
-                                   grad(p[BA], x - 1, y, z)),
-                           lerp(u, grad(p[AB], x, y - 1, z),
-                                   grad(p[BB], x - 1, y - 1, z))),
-                   lerp(v, lerp(u, grad(p[AA + 1], x, y, z - 1),
-                                   grad(p[BA + 1], x - 1, y, z - 1)),
-                           lerp(u, grad(p[AB + 1], x, y - 1, z - 1),
-                                   grad(p[BB + 1], x - 1, y - 1, z - 1))));
-}
+//     for (int x = 0; x < windowWidth; x++)
+//     {
+//         for (int y = 0; y < windowHeight; y++)
+//         {
+//             int index = (y * windowWidth + x) * 4;
+            
+//             float val = 0;
+//             float freq = 1;
+//             float amp = 1;
+ 
+//             for (int i = 0; i < 4; i++)
+//             {
+//                 val += noise(x * freq / GRID_SIZE, y * freq / GRID_SIZE) * amp;
+ 
+//                 freq *= 2;
+//                 amp /= 2;
+ 
+//             }
+ 
+//             // Contrast
+//             val *= 1.2;
+            
+//             // Clipping
+//             if (val > 1.0f)
+//                 val = 1.0f;
+//             else if (val < -1.0f)
+//                 val = -1.0f;
+ 
+//             // Convert 1 to -1 into 255 to 0
+//             int color = (int)(((val + 1.0f) * 0.5f) * 255);
+ 
+//             finalNoise.push_back(color);
+//         }
+//     }
+// }
